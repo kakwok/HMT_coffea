@@ -25,37 +25,6 @@ class MyProcessor(processor.ProcessorABC):
             ,with_name="PtEtaPhiMLorentzVector", 
             behavior=vector.behavior
             )
-
-        #events.cls=ak.zip({
-        #    'eta':events.ca4CSCclusterEta,
-        #    'phi':events.ca4CSCclusterPhi,
-        #    'x':events.ca4CSCclusterX,        
-        #    'y':events.ca4CSCclusterY,
-        #    'z':events.ca4CSCclusterZ,                
-        #    'size':events.ca4CSCclusterSize,
-        #    'time':events.ca4CSCclusterTime,
-        #    'timeSpread':events.ca4CSCclusterTimeSpread,            
-        #    "nME11_12": events.ca4CSCclusterME11_12,
-        #    'time':events.ca4CSCclusterTime,            
-        #    "nStation10": events.ca4CSCclusterNstation10,
-        #    "avgStation10": events.ca4CSCclusterAvgStation10,            
-        #    }    
-        #)
-        #events.cls_dt=ak.zip({
-        #    'eta': events.ca4DTclusterEta,
-        #    'phi': events.ca4DTclusterPhi,
-        #    'x':   events.ca4DTclusterX,        
-        #    'y':   events.ca4DTclusterY,
-        #    'z':   events.ca4DTclusterZ,                
-        #    'size':events.ca4DTclusterSize,
-        #    'time':events.ca4DTclusterTime,
-        #    "nMB1": events.ca4DTclusterMB1,
-        #    "nMB2": events.ca4DTclusterMB2,            
-        #    "nStation10": events.ca4DTclusterNstation10,
-        #    "avgStation10": events.ca4DTclusterAvgStation10,            
-        #    }    
-        #)
-
         
         events.muons = ak.zip(
             {k.replace("muon",""):getattr(events,k) for k in events.fields if k.startswith("muon")}
@@ -63,8 +32,23 @@ class MyProcessor(processor.ProcessorABC):
             behavior=vector.behavior
             )
         
-        
         return events
+
+    def fillHMT(self,lctHMT,output,tag):
+
+        labels  = ["ME11","ME12","ME13",'ME21','ME22','ME31','ME32',"ME41","ME42"]
+        sr_map =[(8,9),(7,10),(6,11),(5,12),(4,13),(3,14),(2,15),(1,16),(0,17)]
+
+        for i,label in enumerate(labels[2:]):
+            h = hist.Hist("Events",hist.Cat("sample","sample"),hist.Bin("size", "size", 20, 0, 200))
+            #pick station-ring
+            sel = ((lctHMT.sr==sr_map[i][0])|lctHMT.sr==sr_map[i][1])
+            h.fill(sample="anode",size=ak.flatten(lctHMT[sel].WireNHits))
+            h.fill(sample="cathode",size=ak.flatten(lctHMT[sel].ComparatorNHits))
+            
+            output[tag+"_"+label] = h
+
+        return 
 
     def fillbasic(self,cls,dataset):
         version = "new"
@@ -164,6 +148,8 @@ class MyProcessor(processor.ProcessorABC):
         for h in hall:
             key = h.dense_axes()[0].name
             output[key] = h        
+
+        self.fillHMT(elctHMT,output,"elctHMT")
 
         # default thresholds
         for regName,region in regions.items():
