@@ -7,22 +7,23 @@ from coffea.nanoevents import NanoEventsFactory, BaseSchema,NanoAODSchema
 from HMTprocessor.HMTproc import MyProcessor
 from HMTprocessor.MDSnano import MDSnanoProcessor
 from HMTprocessor.MDSnanoSchema import MDSNanoAODSchema
-from HMTprocessor.MDStrigProcessor import MDStrigProcessor
-from HMTprocessor.BaseMDSnanoProcessor import BaseMDSnanoProcessor
+#from HMTprocessor.MDStrigProcessor import MDStrigProcessor
+#from HMTprocessor.BaseMDSnanoProcessor import BaseMDSnanoProcessor
 
 def runLocal(outf="test.pickle",fileset="test.json",**options):
-    p = MDStrigProcessor()
+    #p = MDStrigProcessor()
+    p = MyProcessor()
 
     if options['full']:      
         out = processor.run_uproot_job(
             fileset,
-            #treename='simpleCSCshowerFilter/hmt',
-            treename='Events',
+            treename='simpleCSCshowerTreeMaker/hmt',
+            #treename='Events',
             processor_instance=p,
             executor=processor.iterative_executor,
             executor_args={
-                #"schema": BaseSchema,
-                "schema": MDSNanoAODSchema,
+                "schema": BaseSchema,
+                #"schema": MDSNanoAODSchema,
             },
             chunksize=10000,
         )
@@ -30,15 +31,15 @@ def runLocal(outf="test.pickle",fileset="test.json",**options):
         print("loading 1 chunk")
         iterative_run = processor.Runner(
             executor = processor.IterativeExecutor(compression=None),
-            #schema=BaseSchema,
-            schema=MDSNanoAODSchema,
+            schema=BaseSchema,
+            #schema=MDSNanoAODSchema,
             maxchunks=1,
             chunksize=100,
         )
         out =iterative_run(
                 fileset,
-                #treename='simpleCSCshowerFilter/hmt',
-                treename='Events',
+                treename='simpleCSCshowerTreeMaker/hmt',
+                #treename='Events',
                 processor_instance=p,
             )
 
@@ -68,22 +69,22 @@ def runLPC(outf="test.pickle",fileset="test.json",**options):
     exe_args = {
         "client": client,
         "savemetrics": True,
-        #"schema": BaseSchema,
-        "schema": MDSNanoAODSchema,
+        "schema": BaseSchema,
+        #"schema": MDSNanoAODSchema,
         "align_clusters": False,
     }
 
     #client.upload_file("HMTprocessor.zip")
 
-    #p = MyProcessor()
+    p = MyProcessor()
     #p = MDSnanoProcessor()
-    p = MDStrigProcessor()
+    #p = MDStrigProcessor()
 
     client.wait_for_workers(4)
     hists, metrics = processor.run_uproot_job(
         fileset,
-        #treename='simpleCSCshowerFilter/hmt',
-        treename='Events',
+        treename='simpleCSCshowerTreeMaker/hmt',
+        #treename='Events',
         processor_instance=p,
         executor=processor.dask_executor,
         executor_args=exe_args,

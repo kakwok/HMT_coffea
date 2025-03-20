@@ -11,7 +11,14 @@ ak.behavior.update(candidate.behavior)
 
 class MyProcessor(processor.ProcessorABC):
     def __init__(self):
+        histograms={}
+        histograms['sumw']= processor.defaultdict_accumulator(float)
+        self._accumulator = processor.dict_accumulator( histograms )
         pass
+
+    @property
+    def accumulator(self):
+        return self._accumulator
 
     def pack(self,events):
         events.info=ak.zip({
@@ -26,26 +33,33 @@ class MyProcessor(processor.ProcessorABC):
             behavior=vector.behavior
             )
         
-        events.muons = ak.zip(
-            {k.replace("muon",""):getattr(events,k) for k in events.fields if k.startswith("muon")}
-            ,with_name="PtEtaPhiMLorentzVector", 
-            behavior=vector.behavior
-            )
+        #events.muons = ak.zip(
+        #    {k.replace("muon",""):getattr(events,k) for k in events.fields if k.startswith("muon")}
+        #    ,with_name="PtEtaPhiMLorentzVector", 
+        #    behavior=vector.behavior
+        #    )
         
         return events
 
     def fillHMT(self,lctHMT,output,tag):
 
-        labels  = ["ME11","ME12","ME13",'ME21','ME22','ME31','ME32',"ME41","ME42"]
-        sr_map =[(8,9),(7,10),(6,11),(5,12),(4,13),(3,14),(2,15),(1,16),(0,17)]
+        #labels  = ["ME11","ME12","ME13",'ME21','ME22','ME31','ME32',"ME41","ME42"]
+        #sr_map  = [(8,9),(7,10),(6,11),(5,12),(4,13),(3,14),(2,15),(1,16),(0,17)]
 
-        for i,label in enumerate(labels[2:]):
-            h = hist.Hist("Events",hist.Cat("sample","sample"),hist.Bin("size", "size", 20, 0, 200))
+        labels  = ["ME13",'ME21','ME22','ME31','ME32',"ME41","ME42"]
+        sr_map  = [(6,11),(5,12),(4,13),(3,14),(2,15),(1,16),(0,17)]
+        for i,label in enumerate(labels):
+            #h = hist.Hist("Events",hist.Cat("sample","sample"),hist.Bin("size", "size", 20, 0, 200))
             #pick station-ring
-            sel = ((lctHMT.sr==sr_map[i][0])|lctHMT.sr==sr_map[i][1])
-            h.fill(sample="anode",size=ak.flatten(lctHMT[sel].WireNHits))
-            h.fill(sample="cathode",size=ak.flatten(lctHMT[sel].ComparatorNHits))
+            #sel = ((lctHMT.sr==sr_map[i][0])|lctHMT.sr==sr_map[i][1])
+            #h.fill(sample="anode",size=ak.flatten(lctHMT[sel].WireNHits))
+            #h.fill(sample="cathode",size=ak.flatten(lctHMT[sel].ComparatorNHits))
             
+            h = hist.Hist("Events",hist.Bin("AnodeWireHit","AnodeWireHit",100,0,100),hist.Bin("CathodeHit","CathodeHit",100,0,100))
+            sel = (lctHMT.sr==sr_map[i][0])|(lctHMT.sr==sr_map[i][1])
+            h.fill(AnodeWireHit=ak.flatten(lctHMT[sel].WireNHits),
+                   CathodeHit=ak.flatten(lctHMT[sel].ComparatorNHits))
+
             output[tag+"_"+label] = h
 
         return 
@@ -103,7 +117,7 @@ class MyProcessor(processor.ProcessorABC):
         events.uniqueStation = ak.max(events.cscRechitsChamber,axis=1)==ak.min(events.cscRechitsChamber,axis=1)
         events.passL1_emul = ak.any(events.elctHMT_bits>1,axis=1)
         cls.R = (cls.X**2+ cls.Y**2)**0.5
-        mu_veto = ~(ak.all( (events.muonPt>10)&(events.muonIsGlobal)&(events.muonIsMedium) ,axis=1) )
+        #mu_veto = ~(ak.all( (events.muonPt>10)&(events.muonIsGlobal)&(events.muonIsMedium) ,axis=1) )
 
         binning = np.array(
             [ 0.,  20.,  40.,  60.,  80., 100., 120., 140., 160., 180., 200.,
@@ -143,7 +157,9 @@ class MyProcessor(processor.ProcessorABC):
         }
         h= hist.Hist("Events",hist.Cat("sample","sample"),hist.Bin("ClusterSize", "ClusterSize", binning)) 
         ## output hist
-        output = {}
+        #output = {}
+        output = self.accumulator.identity()  ## get from histograms
+        output["sumw"][dataset] += len(events)
         hall = self.fillbasic(cls,dataset)
         for h in hall:
             key = h.dense_axes()[0].name
@@ -153,7 +169,7 @@ class MyProcessor(processor.ProcessorABC):
 
         # default thresholds
         for regName,region in regions.items():
-            sel = ak.all(region&(cls.Nstation10==1),axis=1) 
+            sel = ak.any(region&(cls.Nstation10==1),axis=1) & (events.runNum>360019)
             denom = ak.fill_none(ak.max(cls[sel].Size,axis=1),-1)
             numer = ak.fill_none(denom[events[sel].passL1==1],-1)   
             output[regName] = self.addEff(numer,denom)
